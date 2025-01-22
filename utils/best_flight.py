@@ -1,3 +1,6 @@
+import random
+import time
+
 from utils.header import headers
 from utils.routes import get_routes
 import requests
@@ -7,9 +10,10 @@ class FindBestFlights:
     def __init__(self):
         self.origin = 'PSA'
         self.destination = 'BER'
-        self.date = '2025-01-25'
+        self.date = '2025-01-26'
         self.route_dict = get_routes()
-        self.check_routes = {0: [self.origin, self.destination]}
+        self.check_routes = {0: [[self.origin, self.destination]]}
+        self.flight_info = []
 
     def builder(self):
         outs = self.route_dict[self.origin]
@@ -18,88 +22,72 @@ class FindBestFlights:
         for out in outs:
             if out in ins:
                 idx = len(self.check_routes)
-                build = {idx: [self.origin, out, self.destination]}
+                build = {idx: [[self.origin, out], [out, self.destination]]}
                 self.check_routes.update(build)
-        print(self.check_routes)
 
     def checker(self):
-        for idx, route in self.check_routes.items():
+        list_out = []
+        list_in = []
 
-            while len(route) >= 2:
-                print(f'[ {route[0]} - {route[1]} ] [ CHECK FLIGHT... ]')
-                route.pop(0)
+        for idx, items in self.check_routes.items():
 
-    def get_direct_price(self):
-        r = requests.get(
-            f'https://www.ryanair.com/api/booking/v4/it-it/availability?ADT=1&TEEN=0&CHD=0&INF=0&Origin={self.origin}&Destination={self.destination}&promoCode=&IncludeConnectingFlights=false&DateOut={self.date}&DateIn=&FlexDaysBeforeOut=2&FlexDaysOut=2&FlexDaysBeforeIn=2&FlexDaysIn=2&RoundTrip=false&ToUs=AGREED',
-            headers=headers()).json()
-        trips = r['trips']
-        flight_info = self.get_price(trips)
+            if len(items) == 1:
+                print('[ GET PRICE DIRECT FLIGHT... ]')
+                continue
 
-        if len(flight_info) == 0:
-            print('No flights found')
-            return
-
-        print(f'{flight_info[0]["origin"]} - {flight_info[0]["destination"]}\n')
-
-        for flight in flight_info:
-            print(f'{flight["date"]} - {flight["trip_time"]} - {flight["price"]}')
-
-    def get_price(self, trips):
-        flight_info = []
-
-        for trip in trips:
-            origin_name = trip['originName']
-            destination_name = trip['destinationName']
-            dates = trip['dates']
-
-            for date in dates:
-                date_true = str(date['dateOut']).split('T')[0]
-                if self.date != date_true:
+            for route in items:
+                data_list = self.get_flight_info(route)
+                if not data_list:
                     continue
-                flights = date['flights']
+                if items[0] == route:
+                    for info in self.flight_info:
+                        list_out.append(info)
+                elif items[1] == route:
+                    for info in self.flight_info:
+                        list_in.append(info)
+        print(list_out)
+        print(list_in)
 
-                for flight in flights:
-                    try:
-                        price = flight['regularFare']['fares'][0]['amount']
-                        flightkey = flight['flightKey']
-                        farekey = flight['regularFare']['fareKey']
-                        time_to = str(flight['time'][0]).split('T')[1].split('.')[0]
-                        time_l = str(flight['time'][1]).split('T')[1].split('.')[0]
-                        flight_number = flight['flightNumber']
+    def get_flight_info(self, route): # ['XXX', 'YYY']
+        try:
+            self.flight_info = []
+            r = requests.get(
+                f'https://www.ryanair.com/api/booking/v4/it-it/availability?ADT=1&TEEN=0&CHD=0&INF=0&Origin={route[0]}&Destination={route[1]}&promoCode=&IncludeConnectingFlights=false&DateOut={self.date}&DateIn=&FlexDaysBeforeOut=2&FlexDaysOut=2&FlexDaysBeforeIn=2&FlexDaysIn=2&RoundTrip=false&ToUs=AGREED',
+                headers=headers()).json()
+            trips = r['trips']
 
-                        flight_info.append({
-                            'origin': origin_name,
-                            'destination': destination_name,
-                            'date': date_true,
+            for flight in trips:
+                # needed to check for false positive
+                date_check = flight['dates']
+                date_out = ''
+                for data in date_check:
+                    if len(data['flights']) == 0:
+                        continue
+                    date_out = data['dateOut'].split('T')[0]
+
+                    if date_out != self.date:
+                        continue
+
+                    for data in data['flights']:
+                        price = data['regularFare']['fares'][0]['amount']
+                        time_takeoff = data['segments'][0]['time'][0].split('T')[1]
+                        time_landing = data['segments'][0]['time'][1].split('T')[1]
+                        flight_number = data['flightNumber']
+
+                        self.flight_info.append({
+                            'origin': route[0],
+                            'destination': route[1],
+                            'date': date_out,
                             'price': price,
                             'flight_number': flight_number,
-                            'trip_time': f'{time_to} - {time_l}',
-                            'flightkey': flightkey,
-                            'farekey': farekey
+                            'time_takeoff': time_takeoff,
+                            'time_landing': time_landing
                         })
-                    except Exception as e:
-                        continue
-        return flight_info
-
-
-    def get_indirect(self):
-        possible_out = self.route_dict[self.origin]
-        possible_in = self.route_dict[self.destination]
-        
-        print(possible_out)
-        print(possible_in)
-        
-        for middle in possible_out:
-            if middle in possible_in:
-                print(f'{origin} - {middle} - {destination}')
-        
-        r = requests.get(
-                f'https://www.ryanair.com/api/booking/v4/it-it/availability?ADT=1&TEEN=0&CHD=0&INF=0&Origin={origin}&Destination={destination}&promoCode=&IncludeConnectingFlights=false&DateOut={date}&DateIn=&FlexDaysBeforeOut=2&FlexDaysOut=2&FlexDaysBeforeIn=2&FlexDaysIn=2&RoundTrip=false&ToUs=AGREED',
-                headers=headers()).json()
-
-    def main(self):
-        self.get_direct_price()
+            if len(self.flight_info) == 0:
+                return False
+            return True
+        except:
+            return False
 
 
 bot = FindBestFlights()
