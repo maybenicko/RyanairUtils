@@ -1,7 +1,6 @@
 import requests
-
-from utils.search_flights import get_flight_info
-from utils.header import headers
+from src.search_flights import get_flight_info
+from src.header import headers
 
 
 class RetrieveSeats:

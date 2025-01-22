@@ -1,5 +1,5 @@
 import requests
-from utils.header import headers
+from src.header import headers
 
 
 def get_flight_info(origin, destination, date):

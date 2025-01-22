@@ -1,9 +1,8 @@
 import sys
 import time
-from utils.header import headers
-from utils.routes import get_routes
+from src.header import headers
+from src.routes import get_routes
 import requests
-import json
 
 
 class FindBestFlights:
@@ -11,7 +10,7 @@ class FindBestFlights:
         self.origin = origin
         self.destination = destination
         self.date = date
-        self.direct_price = 0
+        self.direct_price = []
         self.route_dict = get_routes()
         self.check_routes = {0: [[self.origin, self.destination]]}
         self.flight_info = []
@@ -61,9 +60,7 @@ class FindBestFlights:
                 headers=headers())
 
             if 'Availability declined' in r.text:
-                print('[ REQUEST DENIED ]')
-                print(self.flight_out)
-                print(self.flight_in)
+                print(f'[ REQUEST DENIED ] [ {r.status_code} ]')
                 sys.exit()
 
             trips = r.json()['trips']
@@ -76,16 +73,13 @@ class FindBestFlights:
                     date_out = data['dateOut'].split('T')[0]
 
                     if date_out != self.date:
-                        if check:
-                            print('[ NO DIRECT FLIGHTS FOUND ]')
-                            sys.exit()
                         continue
 
                     for data in data['flights']:
                         try:
                             price = int(str(data['regularFare']['fares'][0]['amount']).split('.')[0])
                             if check:
-                                self.direct_price = price
+                                self.direct_price.append(price)
                                 return False
                         except KeyError:
                             # flight sold out
@@ -105,13 +99,16 @@ class FindBestFlights:
                         })
             if len(self.flight_info) == 0:
                 return False
+            if len(self.direct_price) == 0:
+                print('[ NO DIRECT FLIGHTS TO COMPARE ]')
+                sys.exit()
             return True
         except Exception as e:
             print(f'[ ERROR: {e} ]')
             return False
 
     def found_flights(self):
-        print(f'[ DIRECT FLIGHT PRICE: {self.direct_price}€ ]')
+        print(f'[ LOWEST DIRECT FLIGHT PRICE: {min(self.direct_price)}€ ]')
         for out_detail in self.flight_out:
             for in_detail in self.flight_in:
                 if out_detail['destination'] == in_detail['origin']:
@@ -125,13 +122,13 @@ class FindBestFlights:
 
                     # too expensive
                     total_price = out_detail['price'] + in_detail['price']
-                    if total_price > self.direct_price:
+                    if total_price > min(self.direct_price):
                         continue
 
                     # actual cheaper connections
                     print(f'[ {self.origin} - {out_detail["destination"]} ] [ {out_detail["time_takeoff"]} - {out_detail["time_landing"]} ]')
                     print(f'[ {in_detail["origin"]} - {self.destination} ] [ {in_detail["time_takeoff"]} - {in_detail["time_landing"]} ]')
-                    print(f'[ TOTAL PRICE: {total_price}€ ]')
+                    print(f'[ TOTAL PRICE: {total_price}€ ]\n')
 
     def main(self):
         if not self.builder():

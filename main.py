@@ -1,4 +1,4 @@
-from utils.best_flight import FindBestFlights
+from src.best_flight import FindBestFlights
 
 
 def main_menu():
@@ -41,8 +41,9 @@ def best_flight_menu():
             print('Wrong format.')
             continue
         break
-
+    print('')
     return origin, destination, date
+
 
 def main():
     run = True
@@ -67,7 +68,7 @@ def main():
                 FindBestFlights(origin, destination, date).main()
                 continue
             except SystemExit:
-                print('[ SHUTTING DOWN ]')
+                print('[ SHUTTING DOWN ]\n')
 
 
 main()
